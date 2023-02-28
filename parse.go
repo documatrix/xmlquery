@@ -60,6 +60,7 @@ type parser struct {
 	streamNode          *Node         // Need to remember the last target node So we can clean it up upon next Read() call.
 	streamNodePrev      *Node         // Need to remember target node's prev so upon target node removal, we can restore correct prev.
 	reader              *cachedReader // Need to maintain a reference to the reader, so we can determine whether a node contains CDATA.
+	ignoreNamespace     bool          // If true, the parsed namespaces and prefixes will be ignored (and not stored to the nodes).
 }
 
 func createParser(r io.Reader) *parser {
@@ -125,6 +126,10 @@ func (p *parser) parse() (*Node, error) {
 
 			attributes := make([]Attr, len(tok.Attr))
 			for i, att := range tok.Attr {
+				if p.ignoreNamespace {
+					att.Name.Space = ""
+				}
+
 				name := att.Name
 				if prefix, ok := p.space2prefix[name.Space]; ok {
 					name.Space = prefix
@@ -134,6 +139,10 @@ func (p *parser) parse() (*Node, error) {
 					Value:        att.Value,
 					NamespaceURI: att.Name.Space,
 				}
+			}
+
+			if p.ignoreNamespace {
+				tok.Name.Space = ""
 			}
 
 			node := &Node{
@@ -288,37 +297,43 @@ type StreamParser struct {
 // scenarios.
 //
 // Scenario 1: simple case:
-//  xml := `<AAA><BBB>b1</BBB><BBB>b2</BBB></AAA>`
-//  sp, err := CreateStreamParser(strings.NewReader(xml), "/AAA/BBB")
-//  if err != nil {
-//      panic(err)
-//  }
-//  for {
-//      n, err := sp.Read()
-//      if err != nil {
-//          break
-//      }
-//      fmt.Println(n.OutputXML(true))
-//  }
+//
+//	xml := `<AAA><BBB>b1</BBB><BBB>b2</BBB></AAA>`
+//	sp, err := CreateStreamParser(strings.NewReader(xml), "/AAA/BBB")
+//	if err != nil {
+//	    panic(err)
+//	}
+//	for {
+//	    n, err := sp.Read()
+//	    if err != nil {
+//	        break
+//	    }
+//	    fmt.Println(n.OutputXML(true))
+//	}
+//
 // Output will be:
-//   <BBB>b1</BBB>
-//   <BBB>b2</BBB>
+//
+//	<BBB>b1</BBB>
+//	<BBB>b2</BBB>
 //
 // Scenario 2: advanced case:
-//  xml := `<AAA><BBB>b1</BBB><BBB>b2</BBB></AAA>`
-//  sp, err := CreateStreamParser(strings.NewReader(xml), "/AAA/BBB", "/AAA/BBB[. != 'b1']")
-//  if err != nil {
-//      panic(err)
-//  }
-//  for {
-//      n, err := sp.Read()
-//      if err != nil {
-//          break
-//      }
-//      fmt.Println(n.OutputXML(true))
-//  }
+//
+//	xml := `<AAA><BBB>b1</BBB><BBB>b2</BBB></AAA>`
+//	sp, err := CreateStreamParser(strings.NewReader(xml), "/AAA/BBB", "/AAA/BBB[. != 'b1']")
+//	if err != nil {
+//	    panic(err)
+//	}
+//	for {
+//	    n, err := sp.Read()
+//	    if err != nil {
+//	        break
+//	    }
+//	    fmt.Println(n.OutputXML(true))
+//	}
+//
 // Output will be:
-//   <BBB>b2</BBB>
+//
+//	<BBB>b2</BBB>
 //
 // As the argument names indicate, streamElementXPath should be used for
 // providing xpath query pointing to the target element node only, no extra

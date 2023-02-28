@@ -540,3 +540,37 @@ func TestXMLPreservation(t *testing.T) {
 	testOutputXML(t, "first call result",
 		`<?xml version="1.0" encoding="UTF-8"?><AAA><CCC><![CDATA[c1]]></CCC></AAA>`, doc)
 }
+
+func TestXMLIgnoreNamespace(t *testing.T) {
+	s := `
+<?xml version="1.0"?>
+<rss version="2.0" xmlns="http://www.example.com/" xmlns:dc="https://purl.org/dc/elements/1.1/">
+<!-- author -->
+<dc:creator><![CDATA[Richard ]]><![CDATA[Lawler]]></dc:creator>
+<dc:identifier>21|22021348</dc:identifier>
+</rss>
+	`
+	doc, err := ParseWithOptions(strings.NewReader(s), ParserOptions{
+		IgnoreNamespace: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	top := FindOne(doc, "//rss")
+	if top == nil {
+		t.Fatal("rss feed invalid")
+	}
+	node := FindOne(top, "creator")
+	if node.Prefix != "" {
+		t.Fatalf("expected node prefix name to be empty but is=%s", node.Prefix)
+	}
+	if node.NamespaceURI != "" {
+		t.Fatalf("creator != %s", node.NamespaceURI)
+	}
+	if strings.Index(top.InnerText(), "author") > 0 {
+		t.Fatalf("InnerText() include comment node text")
+	}
+	if !strings.Contains(top.OutputXML(true), "author") {
+		t.Fatal("OutputXML shoud include comment node,but not")
+	}
+}
